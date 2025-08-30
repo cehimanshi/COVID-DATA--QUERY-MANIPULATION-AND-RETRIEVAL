@@ -1,0 +1,81 @@
+## RETRIEVE ALL RECORDS OF THE PATIENTS
+Select * from patients_data ;
+
+## TO COUNT HOW MANY PATIENTS ARE VACCINATED 
+Select Count(*) from patients_data where Vaccinated='Yes'; 
+
+## TO LIST PATIENTS ID, COUNTRY , COVID STATUS AND VACCINATION STATUS WHO STAYED IN HOSPITAL FOR MORE THAN 15 DAYS.
+Select Patient_ID , Country, Covid_Status, Vaccinatedfrom patients_data where Days_in_Hospital>15;
+
+## DISPLAY THE TOTAL DEATHS FOR EACH COUNTRY FROM THE GLOBAL_SUMMARY TABLE.
+Select Country, SUM(Total_Deaths) from global_data group by Country;
+
+## FIND THE YOUNGEST PATIENT FROM THE PATIENT_DATA TABLE
+select min(Age) from Patients_data;
+
+## SHOW DISTINCT COUNTRIES PRESENT IN THE PATIENT_DATA TABLE
+Select DISTINCT Country from patients_data;
+
+## CALCULATE AVERAGE HOSPITAL STAY OF VACCINATED VS. NON-VACCINATED PATIENTS.
+Select Vaccinated, 
+AVG(Days_in_Hospital) as AVG_VACCINATED from 
+patients_data group by Vaccinated;
+
+## DISPLAY TOTAL PATIENTS FROM EACH AGE GROUP (USING CASE).
+Select Case
+When age between 0 AND 17 THEN'0-17'
+WHEN age between 18 AND 29 THEN '18-29'
+when age between 30 AND 49 THEN '30-49'
+when age between 50 AND 65 then '50-65'
+Else '65+' END AS  age_group  , 
+Count(*) as No_of_Patients from Patients_data group by age_group order by age_group ASC;
+
+## RANK COUNTRIES BY VACCINATION COVERAGE (USING WINDOW FUNCTION).
+Select Country, 
+Total_Vaccinations, RANK() OVER (ORDER BY Total_Vaccinations DESC)	as rank_by_total 
+from vaccination_data;
+
+## COMPARE TOTAL CASES VS VACCINATIONS
+Select G.Country, G.TOTAL_CASES,
+ v.Total_Vaccinations from global_data As G JOIN vaccination_data as v 
+ ON G.Country=v.Country;
+
+## USING CTE, SHOW THE COUNTRY WITH THE MAXIMUM NUMBER OF RECOVERED PATIENTS AND THE ASSOCIATED RECOVERY RATE.
+
+With Recovery_Rate as 
+(
+Select Country,
+ Count(*) as Recovered_patients,
+ sum(Covid_Status='Recovered') AS Total_Recovered 
+ from patients_data group by Country)
+ 
+Select Country, Recovered_patients,
+Total_Recovered,(Total_recovered *100.0 / Recovered_patients) As Recovery_Rate 
+from Recovery_Rate Order by Recovery_Rate Desc Limit 1;
+
+## CALCULATE THE TOTAL NUMBER OF PATIENTS AND DEATHS PER COUNTRY, THEN SHOW THE COUNTRIES WHERE DEATHS ARE MORE THAN 10%.
+
+With Patients_death AS
+(Select Country, Count(*) as Total_Patients,
+Sum(Covid_Status='Deceased') as Total_Deaths from patients_data
+Group by Country)
+ 
+ Select Country, 
+ Total_Patients,
+ Total_Deaths from Patients_death 
+ Where (Total_deaths * 100.0 / Total_Patients) > 10; 
+ 
+ ## CREATE A TRIGGER THAT AUTOMATICALLY UPDATES THE TOTAL DEATHS IN THE GLOBAL_SUMMARY TABLE WHENEVER A PATIENT IS MARKED AS DECEASED IN THE PATIENT_DATA TABLE.
+
+DELIMITER $$
+create trigger Total_Deaths After Update ON patients_data for each row
+BEGIN 
+IF New.Covid_status='Deceased' AND Old.Covid_Status !='Deceased' THEN  Update global_data set total_deaths= total_deaths + 1 where Country= New.Country;
+END IF;
+END $$
+
+DELIMITER $$
+
+Update patients_data set Covid_Status='Deceased' where Patient_ID='P010';
+
+
